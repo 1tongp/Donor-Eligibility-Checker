@@ -1,0 +1,22 @@
+[
+  {
+    "q": "I had a tattoo recently. Can I donate blood?",
+    "a": "If you had a tattoo in the last 3 months, donation may be deferred. Please check the specific waiting period in the eligibility rules.",
+    "source": "eligibility_rules.md \u2014 Tattoos"
+  },
+  {
+    "q": "How often can I donate whole blood?",
+    "a": "Typical whole blood donation interval is 12 weeks. Check local policy documents for exact intervals.",
+    "source": "donor_faq.md \u2014 Donation frequency"
+  },
+  {
+    "q": "What are the side effects after donating?",
+    "a": "Common effects are light-headedness or bruising. Rest, hydrate, and follow aftercare instructions.",
+    "source": "safety_info.md \u2014 Aftercare"
+  },
+  {
+    "q": "Can I donate if I took antibiotics?",
+    "a": "Recent antibiotics may require a deferral depending on the condition and completion time. See policy for details.",
+    "source": "eligibility_rules.md \u2014 Medications"
+  }
+]

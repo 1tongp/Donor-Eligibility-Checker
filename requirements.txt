@@ -1,0 +1,8 @@
+gradio==4.44.0
+pandas>=2.2.2
+llama-index>=0.11.0
+llama-index-embeddings-openai>=0.2.4
+llama-index-llms-openai>=0.2.7
+faiss-cpu>=1.8.0
+tiktoken>=0.7.0
+python-dotenv>=1.0.1

@@ -1,0 +1,18 @@
+# config/guardrails.yaml
+red_flag_patterns:
+  - "chest pain"
+  - "shortness of breath"
+  - "severe headache"
+  - "fainting"
+  - "loss of consciousness"
+  - "blood in stool"
+  - "vision loss"
+  - "stroke"
+  - "heart attack"
+  - "suicidal"
+escalation_message: |
+  Your question may indicate serious symptoms. This tool provides general information only.
+  Please seek professional medical care immediately or call local emergency services.
+generic_refusal: |
+  I can only provide general information about donation eligibility and preparation.
+  I cannot diagnose or provide personalized medical advice.
