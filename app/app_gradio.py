@@ -5,6 +5,7 @@ import difflib
 import hashlib
 from datetime import datetime
 from pathlib import Path
+import re
 
 from dotenv import load_dotenv
 import gradio as gr
@@ -73,6 +74,26 @@ def _match_faq(question: str, threshold: float = 0.72):
     return None
 
 # ---------- App logic ----------
+def _extract_json_block(text: str):
+    """
+    从 LLM 返回的字符串里提取 ```json fenced block
+    如果没有 fenced block，就尝试直接 json.loads
+    """
+    if not text:
+        return None
+    # 提取 ```json ... ```
+    match = re.search(r"```json(.*?)```", text, re.DOTALL | re.IGNORECASE)
+    if match:
+        try:
+            return json.loads(match.group(1).strip())
+        except Exception:
+            return None
+    # fallback: 直接尝试解析整个字符串
+    try:
+        return json.loads(text.strip())
+    except Exception:
+        return None
+    
 def ui_summarise(did: str):
     _ensure_index()
     return summarise_donor(did)
@@ -83,6 +104,7 @@ def ui_chat(mode: str, qtype: str, donor_id: str, question: str, redact_level: s
     facts = ""
     donor_row = None
 
+    # -------- Donor basic facts（仍然保留，给 RAG 更多可读上下文） --------
     if mode == "Donor-specific" and donor_id:
         donor_row = donors[donors["donor_id"] == donor_id]
         if len(donor_row) > 0:
@@ -95,23 +117,25 @@ def ui_chat(mode: str, qtype: str, donor_id: str, question: str, redact_level: s
                 f"flags:{r.get('questionnaire_flags')}"
             )
 
-    # Prompt injection defense
+    # -------- Prompt injection defense --------
     if looks_like_prompt_injection(question or ""):
         ans = prompt_injection_refusal()
         ans = redact_pii(ans, level=redact_level)
         _audit_log({
             "ts": ts, "mode": mode, "qtype": qtype,
             "donor_id": donor_id, "question": question,
-            "facts": facts, "answer": ans,
-            "citations": ["BLOCKED_PROMPT_INJECTION"],
+            "facts": facts, "answer": ans, "citations": ["BLOCKED_PROMPT_INJECTION"],
         })
         return ans
 
-    # FAQ fast path
+    # -------- FAQ fast path（不走 LLM，保持省钱与稳定） --------
     if qtype == "FAQ":
         match = _match_faq(question)
         if match:
-            ans = f"""{match['a']}\nSources:\n- {match['source']}"""
+            ans = f"""{match['a']}
+
+Sources:
+- {match['source']}"""
             ans = redact_pii(ans, level=redact_level)
             _audit_log({
                 "ts": ts, "mode": mode, "qtype": qtype,
@@ -129,15 +153,38 @@ def ui_chat(mode: str, qtype: str, donor_id: str, question: str, redact_level: s
         })
         return ans
 
-    # Freeform → full RAG
-    ans, cites = rag_answer(question, facts or None)
-    ans = redact_pii(ans)
-    cites = cites or []
+    # -------- Freeform → 始终附带 donor 的 JSON summary --------
+    donor_json_ctx = ""
+    donor_cites = []
+    if mode == "Donor-specific" and donor_id:
+        try:
+            # 兼容包/脚本两种运行方式
+            try:
+                from app.summarise import summarise_donor as _summary
+            except Exception:
+                from summarise import summarise_donor as _summary
+            summary_text = _summary(donor_id)
+            # 尝试提取/解析 JSON（支持 ```json fenced block）
+            data = _extract_json_block(summary_text) or {}
+            donor_json_ctx = "Donor Summary JSON:\n" + json.dumps(data, ensure_ascii=False)
+            donor_cites = data.get("policy_citations") or []
+        except Exception:
+            # 解析失败也不阻塞，继续仅用 facts
+            donor_json_ctx = ""
+
+    # 拼装传给 RAG 的上下文（facts + JSON）
+    effective_facts = "\n".join([p for p in [facts, donor_json_ctx] if p]).strip() or None
+
+    ans, cites = rag_answer(question, effective_facts)
+    ans = redact_pii(ans, level=redact_level)
+    cites = cites or donor_cites or []
     _audit_log({
         "ts": ts, "mode": mode, "qtype": qtype,
         "donor_id": donor_id, "question": question,
-        "facts": facts, "answer_hash": _hash(ans),
+        "facts": (effective_facts[:5000] if effective_facts else ""),  # 避免日志过长
+        "answer_hash": _hash(ans),
         "citations": cites,
+        "routed": "freeform_with_donor_json" if donor_json_ctx else "freeform_no_json"
     })
     if cites:
         ans = ans + "\n\nSources:\n- " + "\n- ".join(cites)
