@@ -16,12 +16,27 @@ from summarise import summarise_donor
 from chat import rag_answer
 from guardrails import redact_pii, looks_like_prompt_injection, prompt_injection_refusal
 
+import sys
+from pathlib import Path
+
+# 把仓库根目录（app 的上级目录）加入 sys.path
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from uuid import uuid4
+SESSION_SEED = uuid4().hex[:8] # for agent checkpointing 
+
 try:
-    from agent.graph import GRAPH
+    from app.agent.graph import GRAPH
     _HAS_AGENT = True
-except Exception as _e:
-    print("Agent not available:", _e)
+except Exception as e:
+    print("Agent import failed:", repr(e))
     _HAS_AGENT = False
+
+print("HAS_AGENT =", _HAS_AGENT)
+
+
     
 # ---------- Config & bootstrap ----------
 load_dotenv()
@@ -105,7 +120,18 @@ def ui_summarise(did: str):
     _ensure_index()
     return summarise_donor(did)
 
-def _run_agent_or_legacy(mode, qtype, donor_id, question, redact_level, use_agent_flag):
+def _as_decision(obj):
+    """容错：既支持 {'decision': {...}}，也支持被展平的顶层字段"""
+    if isinstance(obj, dict):
+        if "decision" in obj and isinstance(obj["decision"], dict):
+            return obj["decision"]
+        # 展平的情况（以前 explain_node 直接 return out）
+        keys = {"decision","confidence","rationale","missing_fields","safety_flags","final_status","used_model","rule_citations"}
+        if any(k in obj for k in keys):
+            return {k: obj.get(k) for k in keys if k in obj}
+    return {}
+
+def _run_agent_or_legacy(mode, qtype, donor_id, question, redact_level, use_agent_flag, session_tid):
     """
     路由：勾选了 Agent 且可用 -> 走 LangGraph；否则走旧的 ui_chat
     返回文本（字符串）
@@ -128,15 +154,18 @@ def _run_agent_or_legacy(mode, qtype, donor_id, question, redact_level, use_agen
 
     # ---- 调用 LangGraph（单轮）----
     try:
-        # 如果想启用记忆，把 thread_id 放到 config 里
-        out = GRAPH.invoke(state)   # 等价于一次性 run；需要 memory 时用 config={"configurable":{"thread_id": "..."}}
+        tid = f"{session_tid}-{donor_id or 'anon'}"  # e.g. ui-ab12cd34-123
+        out = GRAPH.invoke(
+            state,
+            config={"configurable": {"thread_id": tid, "checkpoint_ns": "gradio-ui"}}
+        )
     except Exception as e:
         return f"Agent failed: {e}"
 
     # ---- 统一把 agent 的结构化结果渲染成文本 ----
     # nodes.py 的 explain_node 会返回一个 dict（含 decision/confidence/missing_fields 等）
     if isinstance(out, dict) and "decision" in out:
-        dec = out.get("decision", {})
+        dec = _as_decision(out)
         # 1) 安全拦截
         if dec.get("decision") == "NeedMoreInfo" and dec.get("missing_fields"):
             asks = "\n- ".join(dec["missing_fields"])
@@ -263,7 +292,9 @@ Sources:
 
 # ---------- UI ----------
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# Donor Health Summary & RAG Chat (Local, OpenAI)")
+    thread_state = gr.State(value=f"ui-{uuid4().hex[:8]}")
+
+    gr.Markdown("# Donor Eligibility Checker - RAG + LLM + Agent (Local/ OpenAI)")
     with gr.Row():
         redact_level = gr.Radio(["off", "standard", "strict"], value="standard", label="Redaction")
         mode = gr.Radio(["General", "Donor-specific"], value="General", label="Mode")
@@ -280,9 +311,10 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     ask_btn = gr.Button("Ask")
     ask_btn.click(
     _run_agent_or_legacy,
-    inputs=[mode, qtype, did, q_inp, redact_level, use_agent],
+    inputs=[mode, qtype, did, q_inp, redact_level, use_agent, thread_state],
     outputs=a
-)
+    )
+
 
 
 # Build index if needed on import

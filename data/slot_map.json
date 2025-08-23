@@ -1,0 +1,86 @@
+{
+  "topics": {
+    "tattoo": {
+      "keywords": ["tattoo", "tattooed", "piercing", "microblading", "ink"],
+      "required_slots": ["date", "licensed", "infection"],
+      "slot_hints": {
+        "date": "Exact date of the tattoo/piercing (YYYY-MM-DD).",
+        "licensed": "Was it a licensed studio? (licensed/non-licensed).",
+        "infection": "Any signs of infection? (yes/no)."
+      }
+    },
+    "vaccine": {
+      "keywords": ["vaccine", "vaccination", "jab", "shot", "immunization", "booster", "inoculation"],
+      "required_slots": ["type", "date"],
+      "slot_hints": {
+        "type": "Which vaccine? (e.g., COVID, flu, MMR, Hep B, rabies).",
+        "date": "Exact date of the dose (YYYY-MM-DD)."
+      }
+    },
+    "travel": {
+      "keywords": ["travel", "traveled", "travelled", "trip", "visited", "malaria", "endemic", "country"],
+      "required_slots": ["destination", "return_date", "fever_or_prophylaxis"],
+      "slot_hints": {
+        "destination": "Country/region visited.",
+        "return_date": "Return date (YYYY-MM-DD).",
+        "fever_or_prophylaxis": "Any fever or malaria prophylaxis taken? (yes/no, which)."
+      }
+    },
+    "surgery": {
+      "keywords": ["surgery", "operation", "procedure", "biopsy", "endoscopy", "stitches", "suture"],
+      "required_slots": ["type", "date", "antibiotics_or_medications"],
+      "slot_hints": {
+        "type": "Type of surgery/procedure.",
+        "date": "Date of the procedure (YYYY-MM-DD).",
+        "antibiotics_or_medications": "Any antibiotics/pain meds and last dose."
+      }
+    },
+    "dental": {
+      "keywords": ["dental", "dentist", "extraction", "root canal", "filling", "cleaning", "scaling"],
+      "required_slots": ["type", "date", "antibiotics"],
+      "slot_hints": {
+        "type": "Type of dental work (e.g., extraction, cleaning).",
+        "date": "Date (YYYY-MM-DD).",
+        "antibiotics": "Any antibiotics taken? (name and last dose)."
+      }
+    },
+    "medication": {
+      "keywords": ["medication", "drug", "antibiotic", "anticoagulant", "blood thinner", "warfarin", "heparin", "aspirin", "isotretinoin"],
+      "required_slots": ["name", "dose", "last_time"],
+      "slot_hints": {
+        "name": "Medication name.",
+        "dose": "Dose/strength (e.g., 5 mg).",
+        "last_time": "When was the last dose? (YYYY-MM-DD or HH:MM)."
+      }
+    },
+    "illness": {
+      "keywords": ["fever", "infection", "flu", "covid", "cold", "symptom", "sick"],
+      "required_slots": ["diagnosis_or_symptoms", "start_date", "current_status"],
+      "slot_hints": {
+        "diagnosis_or_symptoms": "Diagnosis or key symptoms.",
+        "start_date": "Onset date (YYYY-MM-DD).",
+        "current_status": "Are you still symptomatic or on treatment? (details)."
+      }
+    },
+    "donation_history": {
+      "keywords": ["donated", "donation", "last donation", "previous donation", "gave blood"],
+      "required_slots": ["date", "type"],
+      "slot_hints": {
+        "date": "Date of last donation (YYYY-MM-DD).",
+        "type": "Type (whole blood, plasma, platelets)."
+      }
+    },
+    "pregnancy": {
+      "keywords": ["pregnant", "pregnancy", "breastfeeding", "lactating", "postpartum"],
+      "required_slots": ["status", "weeks_postpartum_if_any"],
+      "slot_hints": {
+        "status": "Are you currently pregnant or breastfeeding?",
+        "weeks_postpartum_if_any": "Weeks postpartum (if applicable)."
+      }
+    }
+  },
+  "policy": {
+    "ask_cap": 3,
+    "ask_only_missing_slots": true
+  }
+}

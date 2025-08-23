@@ -13,11 +13,32 @@ source venv/bin/activate
    pip install -r requirements.txt
    ```
 
-2. Export your OpenAI API key:
+2. Export your OpenAI API key or create .env:
    ```bash
    export OPENAI_API_KEY=sk-...
    ```
    (Windows PowerShell: `$env:OPENAI_API_KEY="sk-..."`)
+
+   ```bash
+   USE_LOCAL=1 # local setting
+   LOCAL_LLM=qwen2.5:3b
+   EMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
+   OPENAI_BASE_URL=http://localhost:11434/v1 # 仅当 nodes.py 仍用 openai 客户端时需要，让它指向 Ollama 的 OpenAI 兼容端点
+   OPENAI_API_KEY=ollama
+   INDEX_DIR=index/faiss # 索引目录
+   ```
+
+   ```bash
+   USE_LOCAL=0
+   OPENAI_API_KEY=sk-proj-xxxx
+   OPENAI_MODEL=gpt-4o-mini
+   OPENAI_EMBED=text-embedding-3-small
+   OPENAI_TEMPERATURE=0.2
+   CITATION_MODE=prefer
+   INDEX_DIR=index/faiss #索引目录（可选）
+   SLOT_MAP_PATH=data/slot_map.json # agent setting
+   LLM_CLARIFIER_MODEL=gpt-4o-mini
+   ```
 
 3. Build the RAG index (for policy docs):
    ```bash
