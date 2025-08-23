@@ -1,8 +1,26 @@
 gradio==4.44.0
 pandas>=2.2.2
+
+# LlamaIndex core + OpenAI adapters
 llama-index>=0.11.0
 llama-index-embeddings-openai>=0.2.4
 llama-index-llms-openai>=0.2.7
+
+# 本地向量存储（可选）
 faiss-cpu>=1.8.0
+
+# Tokenizer & env
 tiktoken>=0.7.0
 python-dotenv>=1.0.1
+openai>=1.40.0
+langgraph>=0.2.34
+
+# === 本地 RAG 支持 ===
+# HuggingFace embeddings
+sentence-transformers>=2.7.0
+transformers>=4.43.0
+accelerate>=0.33.0
+
+# llamaindex adapters for local LLM + embedding
+llama-index-embeddings-huggingface>=0.2.4
+llama-index-llms-ollama>=0.2.2

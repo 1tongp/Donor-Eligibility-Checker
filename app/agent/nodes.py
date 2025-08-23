@@ -17,7 +17,44 @@ except Exception:
     def escalation_message() -> str:
         return "Your query may require clinical escalation. Please consult a clinician."
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# online OpenAI client
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# local LLM client（使用 Ollama 或其他本地模型）
+# client = OpenAI(
+#     api_key=os.getenv("OPENAI_API_KEY", "ollama"),  # dummy key
+#     base_url=os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+# )
+
+# 根据 USE_LOCAL 开关返回 OpenAI 兼容客户端
+import os, json
+from typing import Dict, Any, Optional
+from openai import OpenAI
+
+def make_openai_client() -> OpenAI:
+    """
+    根据 USE_LOCAL 返回一个 OpenAI 兼容客户端。
+    - 本地：指向 Ollama 的 /v1 端点（base_url）
+    - 云端：直连 OpenAI
+    """
+    use_local = os.getenv("USE_LOCAL", "0") == "1"
+    if use_local:
+        return OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY", "ollama"),     # 占位
+            base_url=os.getenv("OPENAI_BASE_URL", "http://localhost:11434/v1")
+        )
+    else:
+        return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+client = make_openai_client()
+
+# 默认模型名也跟随本地/云端切换
+DECISION_MODEL = (
+    os.getenv("LOCAL_LLM", "qwen2.5:3b")
+    if os.getenv("USE_LOCAL", "0") == "1"
+    else os.getenv("DECISION_MODEL", "gpt-4o-mini")
+)
+
 
 # ---------- 基础工具 ----------
 def _json(obj: Any) -> str:
@@ -105,7 +142,11 @@ def reason_and_decide_node(state: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     resp = client.chat.completions.create(
-        model=os.getenv("DECISION_MODEL", "gpt-4o-mini"),
+        # online model 
+        # model=os.getenv("DECISION_MODEL", "gpt-4o-mini"),
+        
+        # local model
+        model=os.getenv("DECISION_MODEL", os.getenv("LOCAL_LLM", "qwen2.5:3b")),
         messages=[
             {"role":"system","content": system},
             {"role":"user","content": _json(payload)}

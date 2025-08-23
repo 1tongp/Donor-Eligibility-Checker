@@ -45,3 +45,23 @@ source venv/bin/activate
   - Example: `python app/synthesize_data.py --n 300 --seed 123`
 - **config/guardrails.yaml** + **app/guardrails.py**: simple red-flag detection (e.g., "chest pain").
   - You can edit the YAML to customize phrases and messages.
+
+
+## Setting up local RAG + LLM
+```bash
+brew services start ollama
+brew services list   # 可看到 ollama 状态应为 started
+```
+
+```bash 
+# 建议轻量模型，适合 CPU
+ollama pull qwen2.5:3b
+```
+
+```bash
+# 快速自测
+ollama run qwen2.5:3b
+# 出现交互后，输入一行测试问题，Ctrl+C 退出
+```
+
+Then we can start the app for local RAG and LLM settings. Always remember to re-build the index after switching the local/online mode 

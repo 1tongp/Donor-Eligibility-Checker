@@ -4,8 +4,18 @@ from dotenv import load_dotenv
 import pandas as pd
 from typing import Tuple, List
 from llama_index.core import StorageContext, load_index_from_storage, Settings
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
+
+# online settings
+# from llama_index.llms.openai import OpenAI
+# from llama_index.embeddings.openai import OpenAIEmbedding
+
+# local settings
+# from llama_index.llms.ollama import Ollama
+# from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
+from runtime import apply_llamaindex_settings
+INDEX_DIR = apply_llamaindex_settings()
+
 
 # -------- Eligibility precheck (rule-based) --------
 def compute_eligibility(row: dict) -> Tuple[str, List[str]]:
@@ -48,7 +58,7 @@ API_KEY = os.getenv("OPENAI_API_KEY")
 if not API_KEY:
     raise ValueError("OPENAI_API_KEY not found. Set it in .env or your environment.")
 
-INDEX_DIR = "index/faiss"
+# INDEX_DIR = "index/faiss"
 DONOR_CSV = "data/donors.csv"
 
 # 强制模型返回严格 JSON（含 eligibility 字段）
@@ -64,8 +74,15 @@ If symptoms are severe, advise seeking medical care.
 """
 
 def _get_query_engine():
-    Settings.llm = OpenAI(model="gpt-4o-mini", temperature=0.1, api_key=API_KEY)
-    Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small", api_key=API_KEY)
+    # Configure LLM & embeddings (online)
+    # Settings.llm = OpenAI(model="gpt-4o-mini", temperature=0.1, api_key=API_KEY)
+    # Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small", api_key=API_KEY)
+    
+    # configure LLM & embeddings (local)
+    # Settings.llm = Ollama(model=os.getenv("LOCAL_LLM", "qwen2.5:3b"), request_timeout=60.0)
+    # Settings.embed_model = HuggingFaceEmbedding(
+    # model_name=os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"))
+    
     storage = StorageContext.from_defaults(persist_dir=INDEX_DIR)
     index = load_index_from_storage(storage)
     return index.as_query_engine(similarity_top_k=6)

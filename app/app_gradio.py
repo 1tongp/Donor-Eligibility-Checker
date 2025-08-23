@@ -16,6 +16,13 @@ from summarise import summarise_donor
 from chat import rag_answer
 from guardrails import redact_pii, looks_like_prompt_injection, prompt_injection_refusal
 
+try:
+    from agent.graph import GRAPH
+    _HAS_AGENT = True
+except Exception as _e:
+    print("Agent not available:", _e)
+    _HAS_AGENT = False
+    
 # ---------- Config & bootstrap ----------
 load_dotenv()
 API_KEY = os.getenv("OPENAI_API_KEY")
@@ -97,6 +104,70 @@ def _extract_json_block(text: str):
 def ui_summarise(did: str):
     _ensure_index()
     return summarise_donor(did)
+
+def _run_agent_or_legacy(mode, qtype, donor_id, question, redact_level, use_agent_flag):
+    """
+    路由：勾选了 Agent 且可用 -> 走 LangGraph；否则走旧的 ui_chat
+    返回文本（字符串）
+    """
+    if not use_agent_flag or not _HAS_AGENT:
+        return ui_chat(mode, qtype, donor_id, question, redact_level)
+
+    # --- 组装 Agent 的初始 state ---
+    donor_row = None
+    if mode == "Donor-specific" and donor_id:
+        _df = donors[donors["donor_id"] == donor_id]
+        if len(_df) > 0:
+            donor_row = _df.iloc[0].to_dict()
+
+    state = {
+        "donor": donor_row or {},
+        "question": (question or "").strip(),
+        "meta": {"redact": redact_level, "ui": "gradio"}
+    }
+
+    # ---- 调用 LangGraph（单轮）----
+    try:
+        # 如果想启用记忆，把 thread_id 放到 config 里
+        out = GRAPH.invoke(state)   # 等价于一次性 run；需要 memory 时用 config={"configurable":{"thread_id": "..."}}
+    except Exception as e:
+        return f"Agent failed: {e}"
+
+    # ---- 统一把 agent 的结构化结果渲染成文本 ----
+    # nodes.py 的 explain_node 会返回一个 dict（含 decision/confidence/missing_fields 等）
+    if isinstance(out, dict) and "decision" in out:
+        dec = out.get("decision", {})
+        # 1) 安全拦截
+        if dec.get("decision") == "NeedMoreInfo" and dec.get("missing_fields"):
+            asks = "\n- ".join(dec["missing_fields"])
+            return f"To answer precisely, please clarify:\n- {asks}"
+        # 2) 正常情况：把规则结论 + 解释 + 引用（如有）拼成文本
+        lines = []
+        if "final_status" in dec:
+            lines.append(f"**Decision**: {dec['final_status']}")
+        if "rationale" in dec and dec["rationale"]:
+            lines.append(dec["rationale"])
+        # 旧项目的 donor JSON 摘要也可以塞回去（可选）
+        try:
+            if donor_id:
+                lines.append(summarise_donor(donor_id))
+        except Exception:
+            pass
+        # 引用（如果 nodes/explain_node 塞了 rule_citations）
+        cites = []
+        for c in (dec.get("rule_citations") or []):
+            if isinstance(c, dict) and c.get("doc_id"):
+                cites.append(c["doc_id"])
+            elif isinstance(c, str):
+                cites.append(c)
+        if cites:
+            lines.append("Sources:\n- " + "\n- ".join(cites))
+        return "\n\n".join(lines) or json.dumps(dec, ensure_ascii=False)
+
+    # 兜底：把整个对象直转文本
+    if isinstance(out, (dict, list)):
+        return json.dumps(out, ensure_ascii=False, indent=2)
+    return str(out)
 
 def ui_chat(mode: str, qtype: str, donor_id: str, question: str, redact_level: str = "standard"):
     _ensure_index()
@@ -197,6 +268,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         redact_level = gr.Radio(["off", "standard", "strict"], value="standard", label="Redaction")
         mode = gr.Radio(["General", "Donor-specific"], value="General", label="Mode")
         qtype = gr.Radio(["FAQ", "Freeform"], value="FAQ", label="Query Type")
+        use_agent = gr.Checkbox(value=True, label="Use Agent (LangGraph)")
         did = gr.Dropdown(donor_ids, label="Select Donor", scale=1)
         btn = gr.Button("Generate Summary", scale=0)
     out = gr.Textbox(label="Summary (JSON)", lines=10)
@@ -206,7 +278,12 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
     q_inp = gr.Textbox(label="Your question", lines=2, placeholder="e.g., Can I donate if my Hb is 11.8?")
     a = gr.Textbox(label="Answer", lines=8)
     ask_btn = gr.Button("Ask")
-    ask_btn.click(ui_chat, inputs=[mode, qtype, did, q_inp, redact_level], outputs=a)
+    ask_btn.click(
+    _run_agent_or_legacy,
+    inputs=[mode, qtype, did, q_inp, redact_level, use_agent],
+    outputs=a
+)
+
 
 # Build index if needed on import
 _ensure_index()

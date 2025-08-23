@@ -2,8 +2,18 @@ import os
 from dotenv import load_dotenv
 # app/chat.py
 from llama_index.core import StorageContext, load_index_from_storage, Settings
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
+
+# online settings
+# from llama_index.llms.openai import OpenAI
+# from llama_index.embeddings.openai import OpenAIEmbedding
+
+# local settings
+# from llama_index.llms.ollama import Ollama
+# from llama_index.embeddings.huggingface import HuggingFaceEmbedding
+
+from runtime import apply_llamaindex_settings
+INDEX_DIR = apply_llamaindex_settings()
+
 from guardrails import red_flag_hit, escalation_message, generic_refusal, looks_like_prompt_injection, prompt_injection_refusal
 from typing import List, Tuple
 def _format_citation(node) -> str:
@@ -22,15 +32,22 @@ load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 if not api_key:
     raise ValueError("OPENAI_API_KEY not found. Set it in .env or your environment.")
-INDEX_DIR = "index/faiss"
+# INDEX_DIR = "index/faiss"
 
 POLICY = """Policy: Provide general information only. No diagnosis or treatment recommendations.
 If a question suggests serious symptoms, advise seeking medical care. Include citations like [F1] or [S6] where relevant.
 """
 
 def _get_query_engine(top_k: int = 6):
-    Settings.llm = OpenAI(model="gpt-4o-mini", temperature=0.2, api_key=api_key)
-    Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small", api_key=api_key)
+    # Configure LLM & embeddings (online)
+    # Settings.llm = OpenAI(model="gpt-4o-mini", temperature=0.2, api_key=api_key)
+    # Settings.embed_model = OpenAIEmbedding(model="text-embedding-3-small", api_key=api_key)
+    
+    # configure LLM & embeddings (local)
+    # Settings.llm = Ollama(model=os.getenv("LOCAL_LLM", "qwen2.5:3b"), request_timeout=60.0)
+    # Settings.embed_model = HuggingFaceEmbedding(
+    # model_name=os.getenv("EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2"))
+
     storage = StorageContext.from_defaults(persist_dir=INDEX_DIR)
     index = load_index_from_storage(storage)
     return index.as_query_engine(similarity_top_k=top_k)
